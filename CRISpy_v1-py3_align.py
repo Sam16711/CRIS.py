@@ -288,42 +288,54 @@ def traceback(seq1,seq2,lower,middle,upper,match,mismatch,gap_open,gap_extend):
 
     i = len(middle) -1
     j = len(middle[0]) -1
-
+    
+    matrix = "middle"
+    
     #Iterate through cells
     while i != 0 and j !=0:
-
-        if middle[i][j] == lower[i][j]: # Extend Gap
-            align1 = seq1[i-1] + align1
-            align2 = "-" + align2
-            match_symbols = " " + match_symbols
-            i-=1
-        elif middle[i][j] == middle[i-1][j] + gap_open + gap_extend: # Open gap/ Gap Start
-            align1 = seq1[i-1] + align1
-            align2 = "-" + align2
-            match_symbols = " " + match_symbols
-            i-=1
-        elif middle[i][j] == upper[i][j]: # Gap in seq1 (i)
-            align1 = "-" + align1
-            align2 = seq2[j-1] + align2
-            match_symbols = " " + match_symbols
         
-            j-=1
-        elif middle[i][j] == upper[i][j-1]: # Gap in seq1 (i)
-            align1 = "-" + align1
-            align2 = seq2[j-1] + align2
-            match_symbols = " " + match_symbols
-        
-            j-=1
-        elif (seq1[i-1] == seq2[j-1] and middle[i][j] == middle[i-1][j-1] + match) or ( seq1[i-1] != seq2[j-1] and middle[i][j] == middle[i-1][j-1] + mismatch):
-            align1 = seq1[i-1] + align1
-            align2 = seq2[j-1] + align2
+                
+        if matrix == "upper": # Extending Gap in Seq 2
+            if middle[i][j-1] + gap_open + gap_extend == upper[i][j]: # Gap open
+                matrix = "middle"
+                
+            elif upper[i][j] != upper[i][j-1] + gap_extend:
+                exit("The math isn't adding up in the upper matrix. upper[{}][{}]".format(i,j))
             
-            if seq1[i-1] == seq2[j-1]:
-                match_symbols = "|" + match_symbols
-            else:
-                match_symbols = "." + match_symbols
-            i-=1
+            align1 = "-" + align1
+            align2 = seq2[j-1] + align2
+            match_symbols = " " + match_symbols
             j-=1
+            
+        elif matrix == "lower": # Extending Gap in Seq 1
+            if middle[i-1][j] + gap_open + gap_extend == lower[i][j]: # Gap open in lower
+                matrix = "middle" # End gap at gap start
+            
+            elif lower[i][j] != lower[i-1][j] + gap_extend:
+                exit("The math isn't adding up in the lower matrix. lower[{}][{}]".format(i,j))
+            
+            align1 = seq1[i-1] + align1
+            align2 = "-" + align2
+            match_symbols = " " + match_symbols
+            i-=1
+            
+        elif matrix == "middle": 
+            if middle[i][j] == lower[i][j]: # Start Traversing lower matrix. Gap in seq 1
+                matrix = "lower"
+
+            elif middle[i][j] == upper[i][j]: # Start traversing upper matrix. Gap in seq2 (i)
+                matrix = "upper"
+
+            elif (seq1[i-1] == seq2[j-1] and middle[i][j] == middle[i-1][j-1] + match) or ( seq1[i-1] != seq2[j-1] and middle[i][j] == middle[i-1][j-1] + mismatch):
+                align1 = seq1[i-1] + align1
+                align2 = seq2[j-1] + align2
+
+                if seq1[i-1] == seq2[j-1]:
+                    match_symbols = "|" + match_symbols
+                else:
+                    match_symbols = "." + match_symbols
+                i-=1
+                j-=1
             
         # Align the rest of the sequence to gaps if row or column is index 0 ('-')
         while i != 0 and j == 0:
@@ -353,6 +365,42 @@ def write_alignments(alignL,ID,outDir,outF="alignments.txt"):
             outString = " ".join(line)
             print(outString,file=OF)
 
+def get_kmers(seq,k):
+    """ Breaks seq down into list of kmers """
+    kmers = []
+    for i in range(len(seq)-k +1):
+        kmers.append(seq[i:i+k])
+
+    
+    return kmers
+
+def find_5prime_seq_diff(ref,seq):
+    """ Finds first bp difference btween ref and seq.
+        Returns index where difference found """
+
+    for i in range(len(ref)):
+        ref_bp = ref[i]
+        seq_bp = seq[i]
+
+        if ref_bp != seq_bp:
+            return i
+
+    return None
+
+def find_3prime_seq_diff(ref_seq):
+    """ Finds first bp difference starting from the 3' end
+        bewtween the ref and seq (read). Returns index where 
+        diff found"""
+
+    for i in range(len(ref)-1,-1,-1):
+        ref_bp = ref[i]
+        seq_bp = seq[i]
+
+        if ref_bp != seq_bp:
+            return i
+
+    return None
+
 def main():
     ID = ''
     ref_seq = ''
@@ -368,17 +416,31 @@ def main():
     print('Aligning Indels')
     comparison_start = ref_seq.find(seq_start)
     comparison_end = ref_seq.find(seq_end)
-    comp_seq = ref_seq[comparison_start:comparison_end]
+    ref_seq_adj = ref_seq[comparison_start:comparison_end]
     
     alignmentList = []
     for record in master_record:
         header = record[0]
         alignmentList.append([header])
         for j in range(1,len(record)):
-            seq, read_count = record[j].split(",")
-            seq = seq.strip() # Split extra whitepace from indel
-            align1,align2,match_symbols = buildTable(comp_seq,seq)
-            alignment = align1 + "\n" + match_symbols + "\n" + align2
+            read_seq, read_count = record[j].split(",")
+            read_seq = read_seq.strip() # Split extra whitepace from indel
+            diff_5 = find_5prime_seq_diff(ref_seq_adj,read_seq)
+            
+            
+            if diff_5 == None: # Exact match between ref_seq and read_seq
+                align1 = ref_seq_adj
+                align2 = read_seq
+                match_symbols = "|" * len(ref_seq_adj)
+            
+            diff_3 = find_3prime_seq_diff(ref_seq_adj, read_seq)
+            
+            # Adjust sequences to where mismatches start between ref_seq and read_seq
+            # This makes alignment faster as alignment takes O(mn) time
+            ref_seq_adj_short = ref_seq_adj[diff_5-1:diff_3+1]
+            read_seq_short = read_seq[diff_5-1:diff_3+1]
+            align1,align2,match_symbols = buildTable(ref_seq_adj_short,read_seq_short)
+            alignment = ref_seq_adj[:diff_5-1] + align1 + "\n" + match_symbols + "\n" + align2 + ref_seq_adj[diff_3+2:]
             alignmentList.append([alignment, read_count])
 
     write_alignments(alignmentList,ID,save_dir)
