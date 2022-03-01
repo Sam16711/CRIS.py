@@ -8,6 +8,7 @@ from collections import OrderedDict
 import pandas as pd 
 import copy
 import time
+import numpy
 
 #CRIS.py
 
@@ -15,7 +16,7 @@ import time
 
 def get_parameters():
     #Note to user- Change text inside of quote marks ('YOUR DNA SEQUENCES GO HERE') for your experiment.  Case of text does not matter.
-    ID = 'Locus_1_w_align'
+    ID = 'Locus_1'
     ref_seq = str.upper('agggaatgccccggagggcggagaactgggacgaggccgaggtaggcgcggaggaggcaggcgtcgaagagtacggccctgaagaagacggcggggaggagtcgggcgccgaggagtccggcccggaagagtccggcccggaggaactgggcgccgaggaggagatgg')
     seq_start = str.upper('GCGGAGAACTG')
     seq_end = str.upper('GCCGAGGAGGA')
@@ -27,7 +28,6 @@ def get_parameters():
                 ]
 
     return ID,ref_seq,seq_start,seq_end,fastq_files,test_list
-
 
 def pairwise(iterable):
     #Make an ordered dictionary from items in in test list
@@ -226,7 +226,7 @@ def search_fastq(ID,ref_seq,seq_start,seq_end,fastq_files,test_list):
 
     return master_Record, save_dir
     
-def buildTable(seq1,seq2,match=1,mismatch=-1,gap_open=-50,gap_ext=-0.5):
+def buildTable(seq1,seq2,match=1,mismatch=-1,gap_open=-10,gap_ext=-1):
     """Build alignment table"""
     middle = []
     upper = []
@@ -260,6 +260,12 @@ def buildTable(seq1,seq2,match=1,mismatch=-1,gap_open=-50,gap_ext=-0.5):
         middle.append(rowM)
         lower.append(rowL)
         upper.append(rowU)
+    #print("Lower")
+    #print_table(lower)
+    #print("Upper")
+    #print_table(upper)
+    #print("Middle")
+    #print_table(middle)
 
     # Calculate scores
     for i in range(1,len(seq1)+1):
@@ -278,7 +284,17 @@ def buildTable(seq1,seq2,match=1,mismatch=-1,gap_open=-50,gap_ext=-0.5):
             upper[i][j] = max(upper[i][j-1] + gap_ext, middle[i][j-1] + gap_open +gap_ext)
             middle[i][j] = max(lower[i][j],upper[i][j],middle[i-1][j-1] + score)
     
+    #print("Lower")
+    #print_table(lower)
+    #print("Upper")
+    #print_table(upper)
+    #print("Middle")
+    #print_table(middle)
+
     align1,align2,match_symbols = traceback(seq1,seq2,lower,middle,upper,match,mismatch,gap_open,gap_ext)
+    print(align1)
+    print(match_symbols)
+    print(align2)
     return align1,align2,match_symbols
 
 def traceback(seq1,seq2,lower,middle,upper,match,mismatch,gap_open,gap_extend):
@@ -288,42 +304,54 @@ def traceback(seq1,seq2,lower,middle,upper,match,mismatch,gap_open,gap_extend):
 
     i = len(middle) -1
     j = len(middle[0]) -1
-
+    
+    matrix = "middle"
+    
     #Iterate through cells
     while i != 0 and j !=0:
-
-        if middle[i][j] == lower[i][j]: # Extend Gap
-            align1 = seq1[i-1] + align1
-            align2 = "-" + align2
-            match_symbols = " " + match_symbols
-            i-=1
-        elif middle[i][j] == middle[i-1][j] + gap_open + gap_extend: # Open gap/ Gap Start
-            align1 = seq1[i-1] + align1
-            align2 = "-" + align2
-            match_symbols = " " + match_symbols
-            i-=1
-        elif middle[i][j] == upper[i][j]: # Gap in seq1 (i)
-            align1 = "-" + align1
-            align2 = seq2[j-1] + align2
-            match_symbols = " " + match_symbols
         
-            j-=1
-        elif middle[i][j] == upper[i][j-1]: # Gap in seq1 (i)
-            align1 = "-" + align1
-            align2 = seq2[j-1] + align2
-            match_symbols = " " + match_symbols
-        
-            j-=1
-        elif (seq1[i-1] == seq2[j-1] and middle[i][j] == middle[i-1][j-1] + match) or ( seq1[i-1] != seq2[j-1] and middle[i][j] == middle[i-1][j-1] + mismatch):
-            align1 = seq1[i-1] + align1
-            align2 = seq2[j-1] + align2
+                
+        if matrix == "upper": # Extending Gap in Seq 2
+            if middle[i][j-1] + gap_open + gap_extend == upper[i][j]: # Gap open
+                matrix = "middle"
+                
+            elif upper[i][j] != upper[i][j-1] + gap_extend:
+                exit("The math isn't adding up in the upper matrix. upper[{}][{}]".format(i,j))
             
-            if seq1[i-1] == seq2[j-1]:
-                match_symbols = "|" + match_symbols
-            else:
-                match_symbols = "." + match_symbols
-            i-=1
+            align1 = "-" + align1
+            align2 = seq2[j-1] + align2
+            match_symbols = " " + match_symbols
             j-=1
+            
+        elif matrix == "lower": # Extending Gap in Seq 1
+            if middle[i-1][j] + gap_open + gap_extend == lower[i][j]: # Gap open in lower
+                matrix = "middle" # End gap at gap start
+            
+            elif lower[i][j] != lower[i-1][j] + gap_extend:
+                exit("The math isn't adding up in the lower matrix. lower[{}][{}]".format(i,j))
+            
+            align1 = seq1[i-1] + align1
+            align2 = "-" + align2
+            match_symbols = " " + match_symbols
+            i-=1
+            
+        elif matrix == "middle": 
+            if middle[i][j] == lower[i][j]: # Start Traversing lower matrix. Gap in seq 1
+                matrix = "lower"
+
+            elif middle[i][j] == upper[i][j]: # Start traversing upper matrix. Gap in seq2 (i)
+                matrix = "upper"
+
+            elif (seq1[i-1] == seq2[j-1] and middle[i][j] == middle[i-1][j-1] + match) or ( seq1[i-1] != seq2[j-1] and middle[i][j] == middle[i-1][j-1] + mismatch):
+                align1 = seq1[i-1] + align1
+                align2 = seq2[j-1] + align2
+
+                if seq1[i-1] == seq2[j-1]:
+                    match_symbols = "|" + match_symbols
+                else:
+                    match_symbols = "." + match_symbols
+                i-=1
+                j-=1
             
         # Align the rest of the sequence to gaps if row or column is index 0 ('-')
         while i != 0 and j == 0:
@@ -341,11 +369,13 @@ def traceback(seq1,seq2,lower,middle,upper,match,mismatch,gap_open,gap_extend):
     return align1,align2,match_symbols
 
 def print_table(t):
-  for c, row in enumerate(t):
-    for col in row:
-      print("{0:>5}".format(col),end="")
-    print("\n",end="")
-
+  with open("alignment_table.txt","a") as t_out:
+      for c, row in enumerate(t):
+        for col in row:
+            print("{0:>7}".format(col),end="")
+            print("{0:>7}".format(col),end="",file=t_out)
+        print("\n",end="",file=t_out)
+        print("\n",end="")
 def write_alignments(alignL,ID,outDir,outF="alignments.txt"):
     outPath = os.path.join(outDir,ID+outF)
     with open(outPath,"w") as OF:
