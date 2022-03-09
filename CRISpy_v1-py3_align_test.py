@@ -260,12 +260,12 @@ def buildTable(seq1,seq2,match=1,mismatch=-1,gap_open=-10,gap_ext=-0.5):
         middle.append(rowM)
         lower.append(rowL)
         upper.append(rowU)
-    print("Lower")
-    print_table(lower)
-    print("Upper")
-    print_table(upper)
-    print("Middle")
-    print_table(middle)
+    #print("Lower")
+    #print_table(lower)
+    #print("Upper")
+    #print_table(upper)
+    #print("Middle")
+    #print_table(middle)
 
     # Calculate scores
     for i in range(1,len(seq1)+1):
@@ -284,17 +284,17 @@ def buildTable(seq1,seq2,match=1,mismatch=-1,gap_open=-10,gap_ext=-0.5):
             upper[i][j] = max(upper[i][j-1] + gap_ext, middle[i][j-1] + gap_open +gap_ext)
             middle[i][j] = max(lower[i][j],upper[i][j],middle[i-1][j-1] + score)
     
-    print("Lower")
-    print_table(lower)
-    print("Upper")
-    print_table(upper)
-    print("Middle")
-    print_table(middle)
+    #print("Lower")
+    #print_table(lower)
+    #print("Upper")
+    #print_table(upper)
+    #print("Middle")
+    #print_table(middle)
 
     align1,align2,match_symbols = traceback(seq1,seq2,lower,middle,upper,match,mismatch,gap_open,gap_ext)
-    print(align1)
-    print(match_symbols)
-    print(align2)
+    #print(align1)
+    #print(match_symbols)
+    #print(align2)
     return align1,align2,match_symbols
 
 def traceback(seq1,seq2,lower,middle,upper,match,mismatch,gap_open,gap_extend):
@@ -336,12 +336,6 @@ def traceback(seq1,seq2,lower,middle,upper,match,mismatch,gap_open,gap_extend):
             i-=1
             
         elif matrix == "middle": 
-            #if middle[i][j] == lower[i][j]: # Start Traversing lower matrix. Gap in seq 1
-                #matrix = "lower"
-
-            #elif middle[i][j] == upper[i][j]: # Start traversing upper matrix. Gap in seq2 (i)
-                #matrix = "upper"
-
             if (seq1[i-1] == seq2[j-1] and middle[i][j] == middle[i-1][j-1] + match) or ( seq1[i-1] != seq2[j-1] and middle[i][j] == middle[i-1][j-1] + mismatch):
                 align1 = seq1[i-1] + align1
                 align2 = seq2[j-1] + align2
