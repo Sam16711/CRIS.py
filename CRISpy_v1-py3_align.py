@@ -320,13 +320,7 @@ def traceback(seq1,seq2,lower,middle,upper,match,mismatch,gap_open,gap_extend):
             i-=1
             
         elif matrix == "middle": 
-            if middle[i][j] == lower[i][j]: # Start Traversing lower matrix. Gap in seq 1
-                matrix = "lower"
-
-            elif middle[i][j] == upper[i][j]: # Start traversing upper matrix. Gap in seq2 (i)
-                matrix = "upper"
-
-            elif (seq1[i-1] == seq2[j-1] and middle[i][j] == middle[i-1][j-1] + match) or ( seq1[i-1] != seq2[j-1] and middle[i][j] == middle[i-1][j-1] + mismatch):
+            if (seq1[i-1] == seq2[j-1] and middle[i][j] == middle[i-1][j-1] + match) or ( seq1[i-1] != seq2[j-1] and middle[i][j] == middle[i-1][j-1] + mismatch):
                 align1 = seq1[i-1] + align1
                 align2 = seq2[j-1] + align2
 
@@ -337,6 +331,13 @@ def traceback(seq1,seq2,lower,middle,upper,match,mismatch,gap_open,gap_extend):
                 i-=1
                 j-=1
             
+            elif middle[i][j] == lower[i][j]: # Start Traversing lower matrix. Gap in seq 1
+                matrix = "lower"
+
+            elif middle[i][j] == upper[i][j]: # Start traversing upper matrix. Gap in seq2 (i)
+                matrix = "upper"
+
+           
         # Align the rest of the sequence to gaps if row or column is index 0 ('-')
         while i != 0 and j == 0:
             align2 = "-" + align2
